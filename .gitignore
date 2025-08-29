@@ -1,0 +1,12 @@
+# Ignore the build directory
+/build/
+
+# Ignore CMake-generated build files (but NOT your own CMakeLists.txt)
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+
+# OS-specific ignores
+.DS_Store
+Thumbs.db
