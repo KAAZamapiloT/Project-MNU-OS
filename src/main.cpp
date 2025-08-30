@@ -1,6 +1,10 @@
 #include<iostream>
+#include"Process.h"
 // comments
 int main(){
-    std::cout<<"Hello World"<<std::endl;
+    Process proc("ls", {"-l", "-a"});
+    int result = proc.run();
+    std::cout << "Process exited with code: " << result << std::endl;   
+    
     return 0;
 }
