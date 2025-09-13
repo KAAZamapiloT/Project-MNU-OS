@@ -10,3 +10,9 @@
 # OS-specific ignores
 .DS_Store
 Thumbs.db
+
+# VS Code settings
+.vscode/
+
+# Root filesystem for the container - DO NOT COMMIT
+rootfs/
