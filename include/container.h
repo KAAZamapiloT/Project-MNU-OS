@@ -3,30 +3,19 @@
 
 #include <string>
 #include <vector>
+#include <memory>         // For std::unique_ptr
+#include "Config.h"       // Now uses the Config struct
+#include "CgroupManager.h" // Include the CgroupManager
 
-// Define _GNU_SOURCE to get the declaration of clone() from <sched.h>
-#define _GNU_SOURCE
-#include <sched.h>
+// Note: _GNU_SOURCE will be moved to CMakeLists.txt to avoid redefinition warnings
 
-/**
- * @class Container
- * @brief Manages the creation and execution of an isolated process.
- */
 class Container {
 public:
     /**
-     * @brief Constructs a Container object.
-     * @param hostname The desired hostname for the container.
-     * @param rootfs_path The path to the root filesystem for the container.
-     * @param command The command to run inside the container.
-     * @param args A vector of arguments for the command.
+     * @brief Constructs a Container object from a configuration struct.
+     * @param config The configuration object containing all settings.
      */
-    Container(
-        const std::string& hostname,
-        const std::string& rootfs_path,
-        const std::string& command,
-        const std::vector<std::string>& args
-    );
+    explicit Container(const Config& config);
 
     /**
      * @brief Runs the container.
@@ -35,17 +24,20 @@ public:
     int run();
 
 private:
+    // A private struct to pass arguments to the clone()'d child process
+    struct ChildArgs {
+        const Config* config;
+    };
+
     /**
      * @brief The static entry point for the child process created by clone().
-     * @param arg A pointer to the Container object (`this`).
+     * @param arg A pointer to a ChildArgs struct.
      */
     static int child_function(void* arg);
 
-    // Member variables to hold the container's configuration
-    std::string hostname_;
-    std::string rootfs_path_;
-    std::string command_;
-    std::vector<std::string> args_;
+    Config config_;
+    std::unique_ptr<char[]> stack_memory_;
+    CgroupManager cgroup_manager_;
 };
 
 #endif // CONTAINER_H

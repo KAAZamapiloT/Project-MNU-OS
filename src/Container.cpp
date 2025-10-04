@@ -1,76 +1,92 @@
 #include "Container.h"
-#include "FilesystemManager.h" // Include the new FilesystemManager
+#include "FilesystemManager.h"
 #include <iostream>
-#include <memory>       // For std::unique_ptr
-#include <sys/wait.h>   // For waitpid()
-#include <unistd.h>     // For execvp(), sethostname()
-#include <cerrno>       // For errno
-#include <cstring>      // For strerror()
+#include <sys/wait.h>
+#include <unistd.h>
+#include <cstring>
+#include <cerrno>
+#include <sched.h> // For clone()
 
-// A reasonable stack size for the child process
-const int STACK_SIZE = 1 * 1024 * 1024; // 1 MB
+// Stack size for the child process
+const int STACK_SIZE = 1024 * 1024; // 1 MB
 
-Container::Container(
-    const std::string& hostname,
-    const std::string& rootfs_path,
-    const std::string& command,
-    const std::vector<std::string>& args)
-    : hostname_(hostname), rootfs_path_(rootfs_path), command_(command), args_(args) {}
-
-int Container::run() {
-    // Use a smart pointer for the stack for automatic memory management (RAII).
-    auto stack = std::make_unique<char[]>(STACK_SIZE);
-    void* stack_top = stack.get() + STACK_SIZE;
-
-    // Flags for clone(): new PID, UTS, and Mount namespaces.
-    // SIGCHLD ensures the parent is notified when the child exits.
-    int clone_flags = CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWNS | SIGCHLD;
-
-    // Create the child process using clone().
-    pid_t pid = clone(child_function, stack_top, clone_flags, this);
-
-    if (pid == -1) {
-        std::cerr << "Error: clone() failed: " << strerror(errno) << std::endl;
-        return -1;
-    }
-
-    // --- Parent Process ---
-    int status;
-    waitpid(pid, &status, 0);
-
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-}
+// --- FIX: This is the updated constructor that accepts a Config object ---
+Container::Container(const Config& config)
+    : config_(config),
+      stack_memory_(new char[STACK_SIZE]),
+      cgroup_manager_(config) {} // Initialize the CgroupManager here
 
 int Container::child_function(void* arg) {
-    // --- Child Process ---
-    Container* self = static_cast<Container*>(arg);
+    ChildArgs* args = static_cast<ChildArgs*>(arg);
+    const Config* config = args->config;
 
-    // 1. Set the hostname
-    if (sethostname(self->hostname_.c_str(), self->hostname_.length()) != 0) {
-        std::cerr << "Error: sethostname() failed: " << strerror(errno) << std::endl;
-        _exit(1);
+    std::cout << "[Child] Process started with PID: " << getpid() << std::endl;
+
+    // Set hostname
+    if (sethostname(config->hostname.c_str(), config->hostname.length()) != 0) {
+        std::cerr << "Error: sethostname failed: " << strerror(errno) << std::endl;
+        return 1;
     }
 
-    // 2. Set up the root filesystem
-    FilesystemManager fs_manager(self->rootfs_path_);
+    // Setup filesystem
+    FilesystemManager fs_manager(config->rootfs_path);
     if (!fs_manager.setup()) {
-        std::cerr << "Error: Failed to set up container filesystem." << std::endl;
-        _exit(1);
+        std::cerr << "Error: Filesystem setup failed." << std::endl;
+        return 1;
     }
-    
-    // 3. Prepare arguments for execvp
+
+    // Prepare arguments for execvp
     std::vector<char*> c_args;
-    c_args.push_back(const_cast<char*>(self->command_.c_str()));
-    for (const auto& arg_str : self->args_) {
-        c_args.push_back(const_cast<char*>(arg_str.c_str()));
+    c_args.push_back(const_cast<char*>(config->command.c_str()));
+    for (const auto& a : config->args) {
+        c_args.push_back(const_cast<char*>(a.c_str()));
     }
     c_args.push_back(nullptr);
 
-    // 4. Execute the user's command
-    execvp(self->command_.c_str(), c_args.data());
+    // Execute the user's command
+    execvp(c_args[0], c_args.data());
 
-    // If execvp returns, an error occurred.
+    // If execvp returns, it must have failed
     std::cerr << "Error: execvp failed: " << strerror(errno) << std::endl;
-    _exit(1);
+    return 1;
+}
+
+int Container::run() {
+    // --- Parent Process Logic ---
+    
+    // 1. Setup Cgroups before cloning
+    if (!cgroup_manager_.setup()) {
+        std::cerr << "Error: Cgroup setup failed." << std::endl;
+        return 1;
+    }
+
+    ChildArgs child_args;
+    child_args.config = &config_;
+
+    void* stack_top = stack_memory_.get() + STACK_SIZE;
+
+    // 2. Create the child process with clone()
+    int flags = CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWNS | SIGCHLD;
+    pid_t child_pid = clone(child_function, stack_top, flags, &child_args);
+
+    if (child_pid == -1) {
+        std::cerr << "Error: clone failed: " << strerror(errno) << std::endl;
+        cgroup_manager_.teardown(); // Clean up cgroups on failure
+        return 1;
+    }
+    
+    // 3. Apply Cgroup limits to the new child process
+    if (!cgroup_manager_.apply(child_pid)) {
+        std::cerr << "Error: Failed to apply cgroup to child process." << std::endl;
+    }
+
+    // 4. Wait for the child process to exit
+    int status = 0;
+    waitpid(child_pid, &status, 0);
+
+    // 5. Teardown Cgroups
+    cgroup_manager_.teardown();
+
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
