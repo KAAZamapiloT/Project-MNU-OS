@@ -124,7 +124,6 @@ This will:
 ### Phase 2: Configuration & CLI 🚧
 - [ ] **Configuration System**
   - [ ] JSON configuration parser
-  - [ ] YAML configuration support
   - [ ] Environment variable handling
   - [ ] Resource limit configuration
 - [ ] **Enhanced CLI Interface**
