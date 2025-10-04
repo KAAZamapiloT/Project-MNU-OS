@@ -1,0 +1,10 @@
+{
+  "hostname": "my-alpine-container",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": [],
+  "resources": {
+    "memory_limit_mb": 512,
+    "process_limit": 20
+  }
+}

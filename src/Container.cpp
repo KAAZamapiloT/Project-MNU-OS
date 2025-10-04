@@ -10,7 +10,6 @@
 // Stack size for the child process
 const int STACK_SIZE = 1024 * 1024; // 1 MB
 
-// --- FIX: This is the updated constructor that accepts a Config object ---
 Container::Container(const Config& config)
     : config_(config),
       stack_memory_(new char[STACK_SIZE]),

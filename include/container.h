@@ -1,13 +1,11 @@
 #ifndef CONTAINER_H
 #define CONTAINER_H
 
+#include "Config.h"
+#include "CgroupManager.h"
 #include <string>
 #include <vector>
-#include <memory>         // For std::unique_ptr
-#include "Config.h"       // Now uses the Config struct
-#include "CgroupManager.h" // Include the CgroupManager
-
-// Note: _GNU_SOURCE will be moved to CMakeLists.txt to avoid redefinition warnings
+#include <memory> // For std::unique_ptr
 
 class Container {
 public:
