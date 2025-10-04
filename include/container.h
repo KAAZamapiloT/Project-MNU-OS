@@ -14,8 +14,10 @@ public:
     pid_t start(); // Runs in background (detached)
 
 private:
+    // This struct now includes a flag to control terminal detachment.
     struct ChildArgs {
         const Config* config;
+        bool detached;
     };
 
     static int child_function(void* arg);

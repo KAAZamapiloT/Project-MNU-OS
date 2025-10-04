@@ -9,6 +9,7 @@
 #include <signal.h> // For kill()
 
 // Forward declarations for command handlers
+void handle_run_command(int argc, char* argv[]);
 void handle_start_command(const std::string& config_path);
 void handle_list_command();
 void handle_stop_command(const std::string& container_name);
@@ -22,7 +23,9 @@ int main(int argc, char* argv[]) {
 
     std::string command = argv[1];
 
-    if (command == "start") {
+    if (command == "run") {
+        handle_run_command(argc, argv);
+    } else if (command == "start") {
         if (argc != 3) {
             std::cerr << "Usage: " << argv[0] << " start <path_to_config.json>" << std::endl;
             return 1;
@@ -45,6 +48,52 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+void handle_run_command(int argc, char* argv[]) {
+    Config config;
+    int command_start_index = -1;
+
+    // Parse all arguments after "run"
+    for (int i = 2; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--rootfs") {
+            if (i + 1 < argc) config.rootfs_path = argv[++i];
+        } else if (arg == "--memory") {
+            if (i + 1 < argc) config.memory_limit_mb = std::stoi(argv[++i]);
+        } else if (arg == "--pids") {
+            if (i + 1 < argc) config.process_limit = std::stoi(argv[++i]);
+        } else if (arg == "--config") {
+            // A config file can be used with run, but CLI flags will override it
+             if (i + 1 < argc) {
+                if (!ConfigParser::parse(argv[++i], config)) return;
+             }
+        } else {
+            // The first non-flag argument is the start of the command
+            command_start_index = i;
+            break;
+        }
+    }
+
+    // Populate command and its args from the CLI, overriding the JSON file if present
+    if (command_start_index != -1) {
+        config.command = argv[command_start_index];
+        config.args.clear();
+        for (int i = command_start_index + 1; i < argc; ++i) {
+            config.args.push_back(argv[i]);
+        }
+    }
+
+    // After parsing everything, validate the final configuration.
+    // This now correctly checks the config state whether it came from a file or the CLI.
+    if (!ConfigParser::validate(config)) {
+        print_usage(argv[0]);
+        return;
+    }
+
+    std::cout << "[Main] Starting container in foreground mode..." << std::endl;
+    Container container(config);
+    int exit_code = container.run();
+    std::cout << "[Main] Container finished with exit code: " << exit_code << std::endl;
+}
 void handle_start_command(const std::string& config_path) {
     Config config;
     if (!ConfigParser::parse(config_path, config) || !ConfigParser::validate(config)) {
@@ -73,7 +122,6 @@ void handle_list_command() {
     StateManager state_manager;
     auto containers = state_manager.list_containers();
 
-    // Print a header
     printf("%-20s %-10s %-10s %-s\n", "CONTAINER NAME", "PID", "STATUS", "CONFIG");
     printf("%-20s %-10s %-10s %-s\n", "--------------------", "----------", "----------", "--------------------");
 
@@ -103,27 +151,19 @@ void handle_stop_command(const std::string& container_name) {
 
     if (state.status != "running") {
         std::cout << "Container '" << container_name << "' is already stopped." << std::endl;
-        // Optionally clean up the state file here if it's a zombie
-        // state_manager.remove_state(container_name);
         return;
     }
 
     std::cout << "Stopping container '" << container_name << "' (PID: " << state.pid << ")..." << std::endl;
-
-    // Send a graceful termination signal first
+    
     if (kill(state.pid, SIGTERM) != 0) {
         std::perror("kill (SIGTERM)");
-        // If SIGTERM fails, we might try SIGKILL, but for now, we'll just report.
     }
-
-    // In a real runtime, you'd wait a few seconds and then send SIGKILL if it's still alive.
-    // For now, we'll just remove the state.
-
-    // Clean up the state directory
+    
     if (state_manager.remove_state(container_name)) {
         std::cout << "Container '" << container_name << "' stopped and state removed." << std::endl;
     } else {
-        std::cerr << "Warning: Container process may have been stopped, but failed to remove state." << std::endl;
+        std::cerr << "Warning: Failed to remove state for container '" << container_name << "'." << std::endl;
     }
 }
 
@@ -131,8 +171,24 @@ void handle_stop_command(const std::string& container_name) {
 void print_usage(const char* prog_name) {
     std::cerr << "Usage: " << prog_name << " <command> [options]" << std::endl;
     std::cerr << "Commands:" << std::endl;
+    std::cerr << "  run [options] <command>...    Create and run a new container in the foreground." << std::endl;
     std::cerr << "  start <path_to_config.json>   Start a new container in the background." << std::endl;
     std::cerr << "  list                          List all running containers." << std::endl;
     std::cerr << "  stop <container_name>         Stop a running container." << std::endl;
 }
 
+// Example usage for 'run' command:
+// ./container run --rootfs /path/to/rootfs --memory 512 --pids
+// ./container run --config /path/to/config.json --memory 256 /bin/bash -c "echo Hello, World!"
+// Example usage for '
+
+
+//  sudo ./build/mun_os run --config configs/example.json
+
+// sudo ./build/mun_os run --rootfs ./rootfs --memory 128 --pids 10 /bin/sh
+
+// sudo ./build/mun_os start configs/bg.json
+
+// sudo ./build/mun_os list
+
+// sudo ./build/mun_os stop bg

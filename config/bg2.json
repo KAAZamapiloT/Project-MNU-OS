@@ -1,0 +1,9 @@
+{
+  "hostname": "my-background-container2",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": [
+    "-c",
+    "echo 'Container started, sleeping for 300 seconds...'; sleep 300"
+  ]
+}

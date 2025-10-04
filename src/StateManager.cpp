@@ -5,7 +5,7 @@
 #include <dirent.h>   // For reading directories
 #include <sys/stat.h> // For mkdir
 #include <pwd.h>      // For getpwnam (to get home dir with sudo)
-#include <signal.h>   // For kill() to check if process is running
+#include <signal.h>   // For kill()
 #include <cstring>    // For strerror
 #include <cerrno>     // For errno
 
@@ -23,11 +23,23 @@ static std::string get_real_home_dir() {
     return "";
 }
 
+// --- THIS IS THE UPDATED HELPER FUNCTION ---
 // Helper to check if a process with a given PID is currently running
 static bool is_process_running(pid_t pid) {
     // kill(pid, 0) is the standard way to check for a process's existence.
-    // It doesn't send a signal, but performs error checking.
-    return (kill(pid, 0) == 0);
+    if (kill(pid, 0) == 0) {
+        return true; // Process exists and we have permission
+    }
+    
+    // If kill fails, check why.
+    if (errno == EPERM) {
+        // We don't have permission to signal the process, but it exists.
+        // For our `list` command's purposes, this means it's running.
+        return true;
+    }
+
+    // For any other error (like ESRCH - No such process), assume it's not running.
+    return false;
 }
 
 StateManager::StateManager() {
@@ -75,7 +87,6 @@ std::optional<ContainerState> StateManager::load_state(const std::string& contai
         // Update status based on whether the process is actually running
         if (state.status == "running" && !is_process_running(state.pid)) {
             state.status = "stopped";
-            // In a more advanced version, you might re-save the state here.
         }
 
         return state;
@@ -110,7 +121,6 @@ bool StateManager::remove_state(const std::string& container_name) {
     std::string state_file_path = container_path + "/state.json";
 
     if (remove(state_file_path.c_str()) != 0) {
-        // This might fail if the file is already gone, which is okay.
         std::perror("remove state file");
     }
 

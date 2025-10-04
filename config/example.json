@@ -1,10 +1,9 @@
 {
-  "hostname": "my-alpine-container",
+  "hostname": "my-json-container",
   "rootfs_path": "./rootfs",
   "command": "/bin/sh",
-  "args": [],
   "resources": {
     "memory_limit_mb": 512,
-    "process_limit": 20
+    "process_limit": 50
   }
 }
