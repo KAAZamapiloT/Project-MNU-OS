@@ -14,7 +14,7 @@ void handle_start_command(const std::string& config_path);
 void handle_list_command();
 void handle_stop_command(const std::string& container_name);
 void print_usage(const char* prog_name);
-
+void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config);
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         print_usage(argv[0]);
@@ -177,6 +177,74 @@ void print_usage(const char* prog_name) {
     std::cerr << "  stop <container_name>         Stop a running container." << std::endl;
 }
 
+void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config) {
+    // Phase 1: Parse Environment Variables (overrides JSON)
+    if (const char* mem_env = std::getenv("MUN_OS_MEMORY_LIMIT")) {
+        config.memory_limit_mb = std::stoi(mem_env);
+    }
+    if (const char* pids_env = std::getenv("MUN_OS_PIDS_LIMIT")) {
+        config.process_limit = std::stoi(pids_env);
+    }
+
+    // Phase 2: Parse CLI flags (overrides everything)
+    int command_start_index = -1;
+    for (int i = start_index; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--config") {
+            i++; // Already handled, so just skip the path
+        } else if (arg == "--rootfs") {
+            if (i + 1 < argc) config.rootfs_path = argv[++i];
+        } else if (arg == "--memory") {
+            if (i + 1 < argc) config.memory_limit_mb = std::stoi(argv[++i]);
+        } else if (arg == "--pids") {
+            if (i + 1 < argc) config.process_limit = std::stoi(argv[++i]);
+        } else {
+            // First non-flag argument is the start of the command
+            if (command_start_index == -1) {
+                command_start_index = i;
+            }
+        }
+    }
+
+    // Phase 3: Populate command from CLI if present
+    if (command_start_index != -1) {
+        config.command = argv[command_start_index];
+        config.args.clear();
+        for (int i = command_start_index + 1; i < argc; ++i) {
+            config.args.push_back(argv[i]);
+        }
+    }
+}
+
+
+void handle_run_command(int argc, char* argv[]) {
+    Config config;
+    std::string config_path;
+
+    // First, find and parse the config file if it exists
+    for (int i = 2; i < argc; ++i) {
+        if (std::string(argv[i]) == "--config" && i + 1 < argc) {
+            config_path = argv[i + 1];
+            break;
+        }
+    }
+
+    if (!config_path.empty()) {
+        if (!ConfigParser::parse_json(config_path, config)) return;
+    }
+
+    // Now, apply environment variables and CLI flags on top
+    parse_cli_and_env(2, argc, argv, config);
+
+    // Finally, validate the resulting configuration
+    if (!ConfigParser::validate(config)) {
+        print_usage(argv[0]);
+        return;
+    }
+
+    Container container(config);
+    container.run();
+}
 // Example usage for 'run' command:
 // ./container run --rootfs /path/to/rootfs --memory 512 --pids
 // ./container run --config /path/to/config.json --memory 256 /bin/bash -c "echo Hello, World!"
