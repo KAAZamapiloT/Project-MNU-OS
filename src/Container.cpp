@@ -5,20 +5,66 @@
 #include <unistd.h>
 #include <cstring>
 #include <cerrno>
-#include <sched.h>
+#include <sched.h> // For clone()
+#include <fcntl.h> // For open() and file flags
 
-const int STACK_SIZE = 1024 * 1024;
+const int STACK_SIZE = 1024 * 1024; // 1 MB
 
 Container::Container(const Config& config)
     : config_(config),
       stack_memory_(new char[STACK_SIZE]),
       cgroup_manager_(config) {}
 
-// child_function remains the same as before...
 int Container::child_function(void* arg) {
-    // ... same implementation ...
+    ChildArgs* args = static_cast<ChildArgs*>(arg);
+    const Config* config = args->config;
+
+    // This first std::cout will now be redirected to /dev/null
+    std::cout << "[Child] Process started with PID: " << getpid() << std::endl;
+
+    // --- NEW: DETACH FROM TERMINAL FOR TRUE DAEMONIZATION ---
+    // Redirect standard input, output, and error to /dev/null
+    int dev_null = open("/dev/null", O_RDWR);
+    if (dev_null == -1) {
+        // Cannot open /dev/null, something is very wrong.
+        // We can't even print an error, so we just exit.
+        return 1;
+    }
+    dup2(dev_null, STDIN_FILENO);  // stdin
+    dup2(dev_null, STDOUT_FILENO); // stdout
+    dup2(dev_null, STDERR_FILENO); // stderr
+    close(dev_null);
+    // --- END NEW SECTION ---
+
+    // Set hostname
+    if (sethostname(config->hostname.c_str(), config->hostname.length()) != 0) {
+        // Errors from here on will be sent to /dev/null and won't appear on your terminal.
+        // In a real application, you would log these to a file.
+        return 1;
+    }
+
+    // Setup filesystem
+    FilesystemManager fs_manager(config->rootfs_path);
+    if (!fs_manager.setup()) {
+        return 1;
+    }
+
+    // Prepare arguments for execvp
+    std::vector<char*> c_args;
+    c_args.push_back(const_cast<char*>(config->command.c_str()));
+    for (const auto& a : config->args) {
+        c_args.push_back(const_cast<char*>(a.c_str()));
+    }
+    c_args.push_back(nullptr);
+
+    // Execute the user's command
+    execvp(c_args[0], c_args.data());
+
+    // If execvp returns, it must have failed
+    return 1;
 }
 
+// run() and start() methods remain the same...
 int Container::run() {
     // This is now the "attached" or "foreground" mode
     if (!cgroup_manager_.setup()) return 1;
