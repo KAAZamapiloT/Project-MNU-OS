@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-shell",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": [],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

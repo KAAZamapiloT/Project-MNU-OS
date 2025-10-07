@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-high-mem",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": [],
+  "memory_limit_mb": 512,
+  "process_limit": 100
+}

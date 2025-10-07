@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-env-test",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Environment Variables:'; env | sort; echo 'Hostname:'; hostname"],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

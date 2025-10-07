@@ -6,8 +6,10 @@
 
 class ConfigParser {
 public:
-    static bool parse(const std::string& filepath, Config& out_config);
+    // FIX: Renamed this function to match the call in main.cpp
+    static bool parse_json(const std::string& filepath, Config& out_config);
     static bool validate(const Config& config);
 };
 
 #endif // CONFIG_PARSER_H
+

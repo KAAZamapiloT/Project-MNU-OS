@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-os-container",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": [],
+  "memory_limit_mb": 256,
+  "process_limit": 50
+}

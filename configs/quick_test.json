@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-quick",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Quick test completed'; exit 0"],
+  "memory_limit_mb": 64,
+  "process_limit": 10
+}

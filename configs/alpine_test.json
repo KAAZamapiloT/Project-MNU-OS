@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-alpine",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Alpine Linux Test'; cat /etc/alpine-release 2>/dev/null || echo 'Not Alpine Linux'; apk --version 2>/dev/null || echo 'apk not available'"],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

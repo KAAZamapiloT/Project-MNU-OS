@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-fs-explore",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Filesystem Exploration'; echo '--- Root Directory ---'; ls -la /; echo '--- /bin Directory ---'; ls -la /bin 2>/dev/null || echo '/bin not found'; echo '--- /proc Directory ---'; ls /proc 2>/dev/null || echo '/proc not mounted'"],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

@@ -1,0 +1,8 @@
+{
+    "hostname": "sleepy-container",
+    "rootfs_path": "./rootfs",
+    "command": "/bin/sleep",
+    "args": [
+        "10"
+    ]
+}
