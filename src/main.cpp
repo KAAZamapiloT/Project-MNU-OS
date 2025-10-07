@@ -350,3 +350,50 @@ void print_usage(const char* prog_name) {
 // sudo ./build/mun_os list
 
 // sudo ./build/mun_os stop bg
+
+
+
+/* SCRIPT LEVEL ./scripts/generate_test_configs.sh
+
+# Start multiple containers
+sudo ./scripts/manage_containers.sh start bg
+sudo ./scripts/manage_containers.sh start long_running
+sudo ./scripts/manage_containers.sh quick "sleep 300"
+
+# Monitor them live (auto-refreshes every 2 seconds)
+sudo ./scripts/monitor.sh
+
+# In another terminal, check status
+sudo ./scripts/manage_containers.sh list
+
+# Get detailed info
+sudo ./scripts/monitor.sh info bg
+
+# Restart one
+sudo ./scripts/manage_containers.sh restart bg
+
+# Stop all
+sudo ./scripts/manage_containers.sh stopall 
+
+# 1. Start a background container
+sudo ./scripts/manage_containers.sh start bg
+
+# 2. List containers
+sudo ./scripts/manage_containers.sh list
+
+# 3. Monitor in real-time (opens live view)
+sudo ./scripts/monitor.sh
+
+# Or one-time status
+sudo ./scripts/monitor.sh list
+
+# 4. Get detailed info about a container
+sudo ./scripts/monitor.sh info bg
+
+# 5. Restart container (now works even if stopped!)
+sudo ./scripts/manage_containers.sh restart bg
+
+# 6. Stop container
+sudo ./scripts/manage_containers.sh stop bg
+
+*/
