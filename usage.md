@@ -1,155 +1,218 @@
-# Project MUN-OS: Testing & Usage Guide
-**Version:** 1.0  
-**Date:** October 4, 2025  
+# Project MUN-OS: Comprehensive Usage & Testing Guide  
+**Version:** 2.0  
+**Date:** October 8, 2025  
 
-This document provides a comprehensive guide on how to build, run, and test the core features of the `mun_os` container runtime. These tests will verify that both isolation (namespaces) and resource limiting (cgroups) are working correctly.
+This document provides a comprehensive guide on how to build, run, and test all features of the **mun_os** container runtime, including the full container lifecycle and the hybrid configuration system.
 
 ---
 
 ## 1. Prerequisites
-Before running the tests, ensure you have the following ready in your **Project-MNU-OS** directory:
 
-- **A Compiled Executable**: Your `mun_os` binary should be present in the `build/` directory.  
-- **A Prepared Root Filesystem**: A `rootfs/` directory containing a minimal Linux distribution (e.g., Alpine Linux).  
-- **Sudo Privileges**: Creating namespaces and managing cgroups requires root access.  
+### Required Components
+- **Compiled Executable:** `build/mun_os`  
+- **Prepared Root Filesystem:** `rootfs/` directory created by `scripts/setup_rootfs.sh`  
+- **JSON Library:** `include/nlohmann/json.hpp`  
+- **Example Configurations:** Create a `configs/` directory with the following files:
+
+---
+
+### `configs/shell.json`
+```json
+{
+  "hostname": "interactive-shell",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "resources": { "memory_limit_mb": 512, "process_limit": 50 }
+}
+```
+
+### `configs/background.json`
+```json
+{
+  "hostname": "background-process",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sleep",
+  "args": ["300"]
+}
+```
 
 ---
 
 ## 2. Building the Project
-If you have made any code changes, rebuild the project from your project's root directory:
+
+If you have made any code changes, rebuild from your project’s root directory:
 
 ```bash
-# Navigate to the build directory (or create it)
-mkdir -p build && cd build
+# Clean previous build (optional but recommended after major changes)
+rm -rf build
 
-# Configure with CMake and compile with make
+# Rebuild
+mkdir -p build && cd build
 cmake ..
 make
-
-# Navigate back to the project root
 cd ..
 ```
 
 ---
 
-## 3. Basic Usage Syntax
-The general command to run a container is:
+## 3. Usage Syntax & Configuration
 
-```bash
-sudo ./build/mun_os [options] <command> [args...]
-```
+The runtime supports a **hybrid configuration model** with the following order of precedence:
 
-### Available Options
-- `--rootfs <path>`: **Required.** Path to the container's root filesystem.  
-- `--memory <mb>`: Optional. Memory limit in megabytes.  
-- `--pids <limit>`: Optional. Maximum number of processes.  
+1. Hardcoded default values  
+2. JSON file (`--config <path>`)  
+3. Environment Variables (e.g., `MUN_OS_MEMORY_LIMIT`)  
+4. Command-Line Flags (e.g., `--memory <mb>`)
+
+---
+
+### Supported Commands
+
+| Command | Description |
+|----------|--------------|
+| `run` | Run a container in the foreground |
+| `start` | Start a container in the background |
+| `list` | List all managed containers |
+| `stop` | Stop a running container (preserves state) |
+| `restart` | Restart a stopped or running container |
+| `rm` | Remove a stopped container completely |
 
 ---
 
 ## 4. Test Procedures
 
-### **Test 1: Verifying Core Isolation (Namespaces)**
-This test confirms that the **PID**, **UTS**, and **Mount** namespaces are isolating the container from the host.
+### **Test 1: Foreground Execution (`run` command)**
 
-1. **Command:**
+**Purpose:** Verify `run` command and core namespace isolation.
+
+**Command:**
 ```bash
-sudo ./build/mun_os --rootfs ./rootfs /bin/sh
+sudo ./build/mun_os run --config configs/shell.json
 ```
 
-You will now be inside the container, indicated by a `#` prompt.
+You will be dropped into an **interactive shell** inside the container.
 
-2. **Verifications (inside the container shell):**
+#### Verifications (inside container):
+- **PID Isolation:**  
+  ```bash
+  ps aux
+  ```
+  Expected: `/bin/sh` should have PID 1.  
 
-- **Check PID Isolation:**
-```bash
-ps aux
-```
-**Expected Output:** You should only see one or two processes.  
-Your shell (`/bin/sh`) will have PID **1**, proving the PID namespace is working.
+- **UTS Isolation:**  
+  ```bash
+  hostname
+  ```
+  Expected: Prints `interactive-shell`.  
 
-- **Check UTS (Hostname) Isolation:**
-```bash
-hostname
-```
-**Expected Output:** It should print `mun-os-container`, proving the UTS namespace is working.
+- **Mount Isolation:**  
+  ```bash
+  ls /
+  ```
+  Expected: Lists contents of the `rootfs` directory.  
 
-- **Check Mount Isolation:**
-```bash
-ls /
-```
-**Expected Output:** You should see files and folders from your `rootfs` directory (`bin`, `etc`, `lib`, etc.), not your host machine’s filesystem.  
-This proves the Mount namespace and `chroot` are working.
-
-3. **Exit:**
+Exit with:
 ```bash
 exit
 ```
 
 ---
 
-### **Test 2: Running a Custom Binary**
-This test confirms that custom, statically-compiled programs can be executed within the container. (`star_pattern` binary is already in `rootfs/bin`).
+### **Test 2: Full Container Lifecycle (`start`, `list`, `stop`)**
 
-1. **Command:**
-```bash
-sudo ./build/mun_os --rootfs ./rootfs /bin/star_pattern
-```
+**Purpose:** Verify complete lifecycle management for background containers.
 
-2. **Expected Output:**
-```
---- Running Custom Star Pattern Program ---
-* * * * * * * * * * * * * * * -----------------------------------------
-```
-This proves the program executed successfully within the isolated filesystem.
+1. **Start the container**
+   ```bash
+   sudo ./build/mun_os start --config configs/background.json
+   ```
+   Expected: Command returns immediately.
+
+2. **List containers**
+   ```bash
+   ./build/mun_os list
+   ```
+   **Expected Output:**
+   ```
+   CONTAINER NAME       PID        STATUS     CONFIG
+   -------------------- ---------- ---------- ----------------------------------------------------
+   background           12345      running    /home/user/Project-MUN-OS/configs/background.json
+   ```
+
+3. **Stop the container**
+   ```bash
+   sudo ./build/mun_os stop background
+   ```
+   Expected: Message confirming the stop.
+
+4. **Verify stopped status**
+   ```bash
+   ./build/mun_os list
+   ```
+   **Expected Output:**
+   ```
+   CONTAINER NAME       PID        STATUS     CONFIG
+   -------------------- ---------- ---------- ----------------------------------------------------
+   background           12345      stopped    /home/user/Project-MUN-OS/configs/background.json
+   ```
+
+---
+
+### **Test 3: Restart and Removal (`restart`, `rm`)**
+
+**Purpose:** Verify restart and permanent removal of a container.
+
+1. **Restart container**
+   ```bash
+   sudo ./build/mun_os restart background
+   ```
+   Expected: Confirmation message with a **new PID**.
+
+2. **Verify restart**
+   ```bash
+   ./build/mun_os list
+   ```
+   Expected: `background` container listed as **running** with a new PID.
+
+3. **Stop and remove**
+   ```bash
+   sudo ./build/mun_os stop background
+   sudo ./build/mun_os rm background
+   ```
+   Expected: Messages confirming both stop and removal.
+
+4. **Final verification**
+   ```bash
+   ./build/mun_os list
+   ```
+   **Expected Output:**
+   ```
+   CONTAINER NAME       PID        STATUS     CONFIG
+   -------------------- ---------- ---------- --------------------
+   No containers are managed. Use 'start' to create one.
+   ```
 
 ---
 
-### **Test 3: Verifying Memory Limit (Memory Cgroup)**
-This test confirms that the **CgroupManager** can successfully limit the container's memory usage.  
-We will run a command that tries to allocate more memory than allowed and observe the kernel kill it.
+### **Test 4: Configuration Precedence**
 
-1. **Command:**
-```bash
-sudo ./build/mun_os --rootfs ./rootfs --memory 20 /bin/dd if=/dev/zero of=/dev/null bs=1M count=30
-```
+**Purpose:** Confirm that CLI flags and environment variables correctly override JSON configuration.
 
-2. **Expected Output:**
-```
-[Main] Starting container...
-[CgroupManager] Cgroup setup complete at /sys/fs/cgroup/mun-os-container
-[CgroupManager] Applied cgroup to PID ...
-Killed
-[Main] Container finished with exit code: -1
-[CgroupManager] Cgroup teardown complete.
-```
+1. **Run command with overrides**
+   ```bash
+   export MUN_OS_MEMORY_LIMIT=128
+   sudo ./build/mun_os run --config configs/shell.json --memory 64 /bin/dd if=/dev/zero of=/dev/null bs=1M count=100
+   ```
 
-This proves your **memory cgroup** is working perfectly.
+2. **Expected Behavior:**
+   - The `dd` process will be **killed** for exceeding the 64MB memory limit.
+   - Confirms **CLI flag > Environment variable > JSON file** precedence.
+
+3. **Cleanup:**
+   ```bash
+   unset MUN_OS_MEMORY_LIMIT
+   ```
 
 ---
 
-### **Test 4: Verifying Process Limit (PID Cgroup)**
-This test confirms that the **CgroupManager** can limit the number of processes a container can create, preventing a "fork bomb".
-
-1. **Command:**
-```bash
-sudo ./build/mun_os --rootfs ./rootfs --pids 5 /bin/sh
-```
-
-2. **Verifications (inside the container shell):**
-
-- Attempt a fork bomb with:
-```bash
-# bomb() { bomb | bomb & }; bomb
-```
-
-**Expected Output:**  
-The shell will create a few processes but will quickly fail once it hits the cgroup limit of **5 processes**.  
-You will see an error message like:
-
-```
-/bin/sh: can't fork: Resource temporarily unavailable
-```
-
-This proves the **PID cgroup** is working correctly.
-
----
+**End of Document**
