@@ -1,7 +1,7 @@
 #include "Config.h"
 #include "ConfigParser.h"
 #include "StateManager.h"
-#include "Container.h" // <-- FIX: This was the missing include
+#include "Container.h"      // <-- FIX: This was the missing include for the Container class
 #include <iostream>
 #include <string>
 #include <vector>
@@ -9,7 +9,11 @@
 #include <cstdlib>
 #include <signal.h>
 #include <sys/wait.h>
-#include <unistd.h>     // <-- Added for sleep() and usleep()
+#include <unistd.h>         // <-- Added for sleep() and usleep()
+#include <fcntl.h>          // For open()
+#include <sched.h>          // For setns()
+#include <cstring>          // <-- FIX: Added for strerror()
+#include <cerrno>           // <-- FIX: Added for errno
 
 // Forward declarations for command handlers
 void handle_run_command(int argc, char* argv[]);
@@ -18,6 +22,7 @@ void handle_list_command();
 void handle_stop_command(const std::string& container_name);
 void handle_restart_command(const std::string& container_name);
 void handle_remove_command(const std::string& container_name);
+void handle_exec_command(const std::string& container_name, int argc, char* argv[]);
 void print_usage(const char* prog_name);
 void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config);
 
@@ -57,6 +62,12 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         handle_remove_command(argv[2]);
+    }else if (command == "exec") {
+        if (argc < 4) {
+            std::cerr << "Usage: " << argv[0] << " exec <container_name> <command> [args...]" << std::endl;
+            return 1;
+        }
+        handle_exec_command(argv[2], argc, argv);
     } else {
         std::cerr << "Error: Unknown command '" << command << "'" << std::endl;
         print_usage(argv[0]);
@@ -65,6 +76,70 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
+void handle_exec_command(const std::string& container_name, int argc, char* argv[]) {
+    StateManager state_manager;
+    auto state_opt = state_manager.load_state(container_name);
+
+    if (!state_opt || state_opt->status != "running") {
+        std::cerr << "Error: Container '" << container_name << "' is not running or does not exist." << std::endl;
+        return;
+    }
+
+    pid_t container_pid = state_opt->pid;
+    std::cout << "[Exec] Entering namespaces of container '" << container_name << "' (PID: " << container_pid << ")..." << std::endl;
+
+    const std::vector<std::string> ns_types = {"pid", "mnt", "uts", "net", "ipc"};
+    std::vector<int> ns_fds;
+
+    // Get file descriptors for each of the container's namespaces
+    for (const auto& ns_type : ns_types) {
+        std::string ns_path = "/proc/" + std::to_string(container_pid) + "/ns/" + ns_type;
+        int fd = open(ns_path.c_str(), O_RDONLY);
+        if (fd == -1) {
+            std::cerr << "Warning: Could not open namespace file " << ns_path << ": " << strerror(errno) << std::endl;
+            continue;
+        }
+        ns_fds.push_back(fd);
+    }
+
+    // Join the namespaces
+    for (size_t i = 0; i < ns_fds.size(); ++i) {
+        if (setns(ns_fds[i], 0) == -1) {
+            std::cerr << "Error: setns() failed for a namespace: " << strerror(errno) << std::endl;
+            for (int fd : ns_fds) close(fd);
+            return;
+        }
+    }
+    
+    // Close the file descriptors now that we've joined
+    for (int fd : ns_fds) {
+        close(fd);
+    }
+
+    std::cout << "[Exec] Successfully entered namespaces. Forking new process..." << std::endl;
+
+    // Fork and exec the new command inside the joined namespaces
+    pid_t child_pid = fork();
+    if (child_pid == -1) {
+        std::perror("fork");
+        return;
+    }
+
+    if (child_pid == 0) {
+        // --- Child Process ---
+        char** command_args = &argv[3];
+        execvp(command_args[0], command_args);
+        
+        std::perror("execvp");
+        exit(1);
+    } else {
+        // --- Parent Process ---
+        waitpid(child_pid, nullptr, 0);
+        std::cout << "[Exec] Command finished." << std::endl;
+    }
+}
+
 
 void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config) {
     // Phase 1: Parse Environment Variables

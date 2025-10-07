@@ -1,0 +1,9 @@
+{
+  "hostname": "stage3-exec-target",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sleep",
+  "args": [
+    "600"
+  ],
+  "resources": {}
+}

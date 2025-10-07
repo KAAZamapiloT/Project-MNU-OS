@@ -1,0 +1,17 @@
+{
+  "hostname": "stage1-isolation-test",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": [
+    "-c",
+    "echo '--- Stage 1: Core Isolation Test ---'; \
+     echo '1. Verifying Hostname Isolation:'; \
+     hostname; \
+     echo '\n2. Verifying Filesystem Isolation:'; \
+     ls / | grep -E 'bin|etc|lib'; \
+     echo '\n3. Verifying Process Isolation:'; \
+     ps aux | grep -v 'PID'; \
+     echo '\n--- Test Complete ---'"
+  ],
+  "resources": {}
+}

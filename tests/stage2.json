@@ -1,0 +1,15 @@
+{
+  "hostname": "stage2-lifecycle-test",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": [
+    "-c",
+    "echo '--- Stage 2: Lifecycle & Resource Limit Test ---'; \
+     echo 'Container started, it will now try to allocate 30MB of memory...'; \
+     dd if=/dev/zero of=/dev/null bs=1M count=30"
+  ],
+  "resources": {
+    "memory_limit_mb": 20,
+    "process_limit": 10
+  }
+}
