@@ -7,6 +7,7 @@
 #include <vector>
 #include <filesystem>
 #include <cstdlib>
+#include <sys/mount.h> // <-- NEW: Include for mount()
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>         // <-- Added for sleep() and usleep()
@@ -25,7 +26,9 @@ void handle_remove_command(const std::string& container_name);
 void handle_exec_command(const std::string& container_name, int argc, char* argv[]);
 void print_usage(const char* prog_name);
 void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config);
-
+void handle_kill_all_command();
+void handle_cleanup_command();
+void handle_prune_command();
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         print_usage(argv[0]);
@@ -68,7 +71,15 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         handle_exec_command(argv[2], argc, argv);
-    } else {
+    }else if (command == "kill-all") {
+    handle_kill_all_command();
+}
+else if (command == "cleanup") {
+    handle_cleanup_command();
+}
+else if (command == "prune") {
+    handle_prune_command();
+}else {
         std::cerr << "Error: Unknown command '" << command << "'" << std::endl;
         print_usage(argv[0]);
         return 1;
@@ -77,68 +88,189 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+// Simpler and more reliable approach using nsenter
 void handle_exec_command(const std::string& container_name, int argc, char* argv[]) {
     StateManager state_manager;
     auto state_opt = state_manager.load_state(container_name);
 
     if (!state_opt || state_opt->status != "running") {
-        std::cerr << "Error: Container '" << container_name << "' is not running or does not exist." << std::endl;
+        std::cerr << "Error: Container '" << container_name << "' is not running." << std::endl;
         return;
     }
 
     pid_t container_pid = state_opt->pid;
-    std::cout << "[Exec] Entering namespaces of container '" << container_name << "' (PID: " << container_pid << ")..." << std::endl;
-
-    const std::vector<std::string> ns_types = {"pid", "mnt", "uts", "net", "ipc"};
-    std::vector<int> ns_fds;
-
-    // Get file descriptors for each of the container's namespaces
-    for (const auto& ns_type : ns_types) {
-        std::string ns_path = "/proc/" + std::to_string(container_pid) + "/ns/" + ns_type;
-        int fd = open(ns_path.c_str(), O_RDONLY);
-        if (fd == -1) {
-            std::cerr << "Warning: Could not open namespace file " << ns_path << ": " << strerror(errno) << std::endl;
-            continue;
-        }
-        ns_fds.push_back(fd);
-    }
-
-    // Join the namespaces
-    for (size_t i = 0; i < ns_fds.size(); ++i) {
-        if (setns(ns_fds[i], 0) == -1) {
-            std::cerr << "Error: setns() failed for a namespace: " << strerror(errno) << std::endl;
-            for (int fd : ns_fds) close(fd);
-            return;
-        }
+    
+    // Build nsenter command
+    std::vector<std::string> nsenter_args = {
+        "nsenter",
+        "--target", std::to_string(container_pid),
+        "--mount", "--uts", "--ipc", "--net", "--pid",
+        "--"
+    };
+    
+    // Add user's command
+    for (int i = 3; i < argc; i++) {
+        nsenter_args.push_back(argv[i]);
     }
     
-    // Close the file descriptors now that we've joined
-    for (int fd : ns_fds) {
-        close(fd);
+    // Convert to C-style args
+    std::vector<char*> c_args;
+    for (auto& arg : nsenter_args) {
+        c_args.push_back(const_cast<char*>(arg.c_str()));
     }
-
-    std::cout << "[Exec] Successfully entered namespaces. Forking new process..." << std::endl;
-
-    // Fork and exec the new command inside the joined namespaces
-    pid_t child_pid = fork();
-    if (child_pid == -1) {
+    c_args.push_back(nullptr);
+    
+    std::cout << "[Exec] Executing command in container '" << container_name << "'..." << std::endl;
+    
+    // Execute nsenter
+    pid_t exec_pid = fork();
+    if (exec_pid == -1) {
         std::perror("fork");
         return;
     }
-
-    if (child_pid == 0) {
-        // --- Child Process ---
-        char** command_args = &argv[3];
-        execvp(command_args[0], command_args);
-        
-        std::perror("execvp");
+    
+    if (exec_pid == 0) {
+        // Child process
+        execvp(c_args[0], c_args.data());
+        std::cerr << "Error: Failed to execute nsenter: " << strerror(errno) << std::endl;
+        std::cerr << "Make sure 'nsenter' is installed (usually in util-linux package)" << std::endl;
         exit(1);
     } else {
-        // --- Parent Process ---
-        waitpid(child_pid, nullptr, 0);
-        std::cout << "[Exec] Command finished." << std::endl;
+        // Parent process
+        int status;
+        waitpid(exec_pid, &status, 0);
+        
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            std::cout << "[Exec] Command completed successfully." << std::endl;
+        } else {
+            std::cout << "[Exec] Command exited with status: " << WEXITSTATUS(status) << std::endl;
+        }
     }
 }
+
+
+void handle_kill_all_command() {
+    StateManager state_manager;
+    auto containers = state_manager.list_containers();
+
+    if (containers.empty()) {
+        std::cout << "No containers found." << std::endl;
+        return;
+    }
+
+    std::cout << "Stopping all running containers..." << std::endl;
+    int stopped_count = 0;
+    int already_stopped = 0;
+    
+    for (const auto& state : containers) {
+        if (state.status == "running") {
+            std::cout << "  Stopping '" << state.name << "'..." << std::endl;
+            handle_stop_command(state.name);
+            stopped_count++;
+        } else {
+            already_stopped++;
+        }
+    }
+
+    std::cout << "\n=== Summary ===" << std::endl;
+    std::cout << "Stopped: " << stopped_count << " container(s)" << std::endl;
+    std::cout << "Already stopped: " << already_stopped << " container(s)" << std::endl;
+    
+    if (already_stopped > 0) {
+        std::cout << "\nTip: Use 'prune' to remove all stopped containers." << std::endl;
+    }
+}
+
+// New function: Stop all running AND remove all stopped containers
+void handle_cleanup_command() {
+    StateManager state_manager;
+    auto containers = state_manager.list_containers();
+
+    if (containers.empty()) {
+        std::cout << "No containers found." << std::endl;
+        return;
+    }
+
+    std::cout << "Cleaning up all containers..." << std::endl;
+    int stopped_count = 0;
+    int removed_count = 0;
+
+    // First pass: Stop all running containers
+    for (const auto& state : containers) {
+        if (state.status == "running") {
+            std::cout << "  Stopping '" << state.name << "'..." << std::endl;
+            handle_stop_command(state.name);
+            stopped_count++;
+        }
+    }
+
+    // Refresh the list after stopping
+    containers = state_manager.list_containers();
+
+    // Second pass: Remove all (now stopped) containers
+    for (const auto& state : containers) {
+        std::cout << "  Removing '" << state.name << "'..." << std::endl;
+        if (state_manager.remove_state(state.name)) {
+            removed_count++;
+        }
+    }
+
+    std::cout << "\n=== Summary ===" << std::endl;
+    std::cout << "Stopped: " << stopped_count << " container(s)" << std::endl;
+    std::cout << "Removed: " << removed_count << " container(s)" << std::endl;
+    std::cout << "All containers cleaned up successfully!" << std::endl;
+}
+
+// New function: Remove only stopped containers (like Docker prune)
+void handle_prune_command() {
+    StateManager state_manager;
+    auto containers = state_manager.list_containers();
+
+    if (containers.empty()) {
+        std::cout << "No containers found." << std::endl;
+        return;
+    }
+
+    std::vector<std::string> stopped_containers;
+    int running_count = 0;
+
+    // Identify stopped containers
+    for (const auto& state : containers) {
+        if (state.status == "stopped") {
+            stopped_containers.push_back(state.name);
+        } else {
+            running_count++;
+        }
+    }
+
+    if (stopped_containers.empty()) {
+        std::cout << "No stopped containers to remove." << std::endl;
+        if (running_count > 0) {
+            std::cout << running_count << " running container(s) left untouched." << std::endl;
+        }
+        return;
+    }
+
+    std::cout << "Removing " << stopped_containers.size() << " stopped container(s)..." << std::endl;
+    int removed_count = 0;
+
+    for (const auto& name : stopped_containers) {
+        std::cout << "  Removing '" << name << "'..." << std::endl;
+        if (state_manager.remove_state(name)) {
+            removed_count++;
+        }
+    }
+
+    std::cout << "\n=== Summary ===" << std::endl;
+    std::cout << "Removed: " << removed_count << " stopped container(s)" << std::endl;
+    if (running_count > 0) {
+        std::cout << "Running: " << running_count << " container(s) (left untouched)" << std::endl;
+    }
+}
+
+// Update the main() function to include the new commands
+// Add these cases in your command routing section:
+
 
 
 void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config) {
@@ -404,7 +536,10 @@ void print_usage(const char* prog_name) {
     std::cerr << "  stop <container_name>         Stop a running container (preserves state)." << std::endl;
     std::cerr << "  restart <container_name>      Restart a stopped or running container." << std::endl;
     std::cerr << "  list                          List all containers." << std::endl;
-    std::cerr << "  rm <container_name>           Remove a stopped container." << std::endl;
+    std::cerr << "  remove <container_name>           Remove a stopped container." << std::endl;
+    std::cerr << "  kill-all                          Stop all running containers." << std::endl;
+    std::cerr << "  prune                             Remove all stopped containers." << std::endl;
+    std::cerr << "  cleanup                           Stop all running AND remove all containers." << std::endl;
 }
 
 
