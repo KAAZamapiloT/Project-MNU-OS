@@ -29,9 +29,9 @@ enum class Capability {
 
 struct SecurityConfig {
     // Filesystem
-    bool use_pivot_root = true; // <-- FIX: Added this member back
-    bool readonly_rootfs = false;
-    std::vector<std::pair<std::string, std::string>> bind_mounts; // {source, target}
+    bool use_pivot_root = true;
+    bool readonly_rootfs = true;
+    std::vector<std::pair<std::string, std::string>> bind_mounts;
     bool setup_tmpfs = true;
     size_t tmpfs_size_mb = 64;
 
@@ -47,7 +47,7 @@ struct SecurityConfig {
     std::vector<Capability> keep_capabilities;
 
     // Seccomp
-    bool use_seccomp = false;
+    bool use_seccomp = true;
     std::string seccomp_profile = "default";
 
     SecurityConfig() {
@@ -86,7 +86,6 @@ class SeccompFilter {
 public:
     static bool apply_default_profile();
 };
-
 
 // ============================================================================
 // MAIN ORCHESTRATOR CLASS
