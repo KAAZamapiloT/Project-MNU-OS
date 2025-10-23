@@ -53,7 +53,9 @@ struct SecurityConfig {
     SecurityConfig() {
         uid_mappings.emplace_back(0, 1000, 1);
         gid_mappings.emplace_back(0, 1000, 1);
+         keep_capabilities.push_back(Capability::CAP_NET_RAW);
     }
+
 };
 
 // ============================================================================

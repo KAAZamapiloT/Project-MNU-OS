@@ -13,6 +13,7 @@
 #include <termios.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include"NetworkManager.h"
 
 static bool send_fd(int socket, int fd_to_send) {
     struct msghdr msg = {0};
@@ -171,7 +172,7 @@ pid_t Container::create_container_process(bool detached) {
         return -1;
     }
 
-    int flags = CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWNS | CLONE_NEWIPC | SIGCHLD;
+    int flags = CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWNS | CLONE_NEWIPC |CLONE_NEWNET|SIGCHLD;
     if (config_.security.use_user_namespace) {
         flags |= CLONE_NEWUSER;
     }
@@ -211,7 +212,8 @@ int Container::run() {
         cgroup_manager_.teardown();
         return -1;
     }
-
+    NetworkManager net_manager(config_.network);
+    net_manager.setup_container_network(child_pid, "container-" + std::to_string(child_pid));
     cgroup_manager_.apply(child_pid);
 
     int status = 0;

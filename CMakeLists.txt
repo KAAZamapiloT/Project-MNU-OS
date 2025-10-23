@@ -18,8 +18,8 @@ add_executable(mun_os
     src/ConfigParser.cpp
     src/StateManager.cpp
     src/Security.cpp
+    src/NetworkManager.cpp
 )
 
 # Link against the capability library for CapabilityManager
 target_link_libraries(mun_os PRIVATE cap)
-

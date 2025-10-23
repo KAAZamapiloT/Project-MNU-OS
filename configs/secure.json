@@ -1,0 +1,20 @@
+{
+    "hostname": "secure-container",
+    "rootfs_path": "./rootfs",
+    "command": "/bin/sh",
+    "args": [
+        "-c", 
+        "echo '--- INSIDE THE SECURE CONTAINER ---'; echo; echo '=> Running id:'; id; echo; echo '=> Trying to write to root filesystem:'; touch /testfile"
+    ],
+    "resources": {
+        "memory_limit_mb": 128,
+        "process_limit": 20
+    },
+    "security": {
+        "use_pivot_root": true,
+        "readonly_rootfs": true,
+        "use_user_namespace": true,
+        "drop_capabilities": true,
+        "use_seccomp": false
+    }
+}

@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include "Security.h"  // Include the nested security configuration
-
+#include "NetworkManager.h"
 struct Config {
     // Basic Configuration
     // FIX: Added a default initializer for hostname.
@@ -12,14 +12,15 @@ struct Config {
     std::string rootfs_path;
     std::string command;
     std::vector<std::string> args;
-    
+
     // Resource Limits
     int memory_limit_mb = 0;
     int process_limit = 0;
-    
+
     // Encapsulated Security Configuration
     Security::SecurityConfig security;
+    //netowrk configuration
+    NetworkConfig network;
 };
 
 #endif // CONFIG_H
-
