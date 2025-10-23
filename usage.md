@@ -1,6 +1,6 @@
-# Project MUN-OS: Comprehensive Usage & Testing Guide  
-**Version:** 2.0  
-**Date:** October 8, 2025  
+# Project MUN-OS: Comprehensive Usage & Testing Guide
+**Version:** 2.0
+**Date:** October 8, 2025
 
 This document provides a comprehensive guide on how to build, run, and test all features of the **mun_os** container runtime, including the full container lifecycle and the hybrid configuration system.
 
@@ -9,9 +9,9 @@ This document provides a comprehensive guide on how to build, run, and test all 
 ## 1. Prerequisites
 
 ### Required Components
-- **Compiled Executable:** `build/mun_os`  
-- **Prepared Root Filesystem:** `rootfs/` directory created by `scripts/setup_rootfs.sh`  
-- **JSON Library:** `include/nlohmann/json.hpp`  
+- **Compiled Executable:** `build/mun_os`
+- **Prepared Root Filesystem:** `rootfs/` directory created by `scripts/setup_rootfs.sh`
+- **JSON Library:** `include/nlohmann/json.hpp`
 - **Example Configurations:** Create a `configs/` directory with the following files:
 
 ---
@@ -59,11 +59,26 @@ cd ..
 
 The runtime supports a **hybrid configuration model** with the following order of precedence:
 
-1. Hardcoded default values  
-2. JSON file (`--config <path>`)  
-3. Environment Variables (e.g., `MUN_OS_MEMORY_LIMIT`)  
+1. Hardcoded default values
+2. JSON file (`--config <path>`)
+3. Environment Variables (e.g., `MUN_OS_MEMORY_LIMIT`)
 4. Command-Line Flags (e.g., `--memory <mb>`)
 
+Run This Command for enabling DNS
+'''
+# Create /etc directory in rootfs
+mkdir -p ./rootfs/etc
+
+# Create resolv.conf with DNS servers
+cat > ./rootfs/etc/resolv.conf << EOF
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+EOF
+
+# Verify it was created
+cat ./rootfs/etc/resolv.conf
+ls -la ./rootfs/etc/
+'''
 ---
 
 ### Supported Commands
@@ -93,23 +108,23 @@ sudo ./build/mun_os run --config configs/shell.json
 You will be dropped into an **interactive shell** inside the container.
 
 #### Verifications (inside container):
-- **PID Isolation:**  
+- **PID Isolation:**
   ```bash
   ps aux
   ```
-  Expected: `/bin/sh` should have PID 1.  
+  Expected: `/bin/sh` should have PID 1.
 
-- **UTS Isolation:**  
+- **UTS Isolation:**
   ```bash
   hostname
   ```
-  Expected: Prints `interactive-shell`.  
+  Expected: Prints `interactive-shell`.
 
-- **Mount Isolation:**  
+- **Mount Isolation:**
   ```bash
   ls /
   ```
-  Expected: Lists contents of the `rootfs` directory.  
+  Expected: Lists contents of the `rootfs` directory.
 
 Exit with:
 ```bash
