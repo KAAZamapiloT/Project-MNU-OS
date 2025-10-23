@@ -88,7 +88,6 @@ else if (command == "prune") {
     return 0;
 }
 
-// Simpler and more reliable approach using nsenter
 void handle_exec_command(const std::string& container_name, int argc, char* argv[]) {
     StateManager state_manager;
     auto state_opt = state_manager.load_state(container_name);
@@ -99,47 +98,54 @@ void handle_exec_command(const std::string& container_name, int argc, char* argv
     }
 
     pid_t container_pid = state_opt->pid;
-    
-    // Build nsenter command
-    std::vector<std::string> nsenter_args = {
-        "nsenter",
+
+    // ✅ FIX: Check if nsenter binary exists before attempting to use it
+    // BEFORE: Directly called nsenter, would fail at exec time with confusing error
+    // AFTER: Validate binary exists and is executable, provide helpful error message
+    const char* nsenter_path = "/usr/bin/nsenter";
+    if (access(nsenter_path, X_OK) != 0) {
+        std::cerr << "Error: nsenter not found at " << nsenter_path << std::endl;
+        std::cerr << "Install util-linux package: sudo apt install util-linux" << std::endl;
+        return;
+    }
+
+    // Build nsenter command with absolute path
+    std::vector<std::string> nsenter_args{
+        nsenter_path,
         "--target", std::to_string(container_pid),
-        "--mount", "--uts", "--ipc", "--net", "--pid",
-        "--"
+        "--mount", "--uts", "--ipc", "--net", "--pid"
     };
-    
+
     // Add user's command
     for (int i = 3; i < argc; i++) {
         nsenter_args.push_back(argv[i]);
     }
-    
+
     // Convert to C-style args
     std::vector<char*> c_args;
     for (auto& arg : nsenter_args) {
         c_args.push_back(const_cast<char*>(arg.c_str()));
     }
     c_args.push_back(nullptr);
-    
+
     std::cout << "[Exec] Executing command in container '" << container_name << "'..." << std::endl;
-    
+
     // Execute nsenter
     pid_t exec_pid = fork();
     if (exec_pid == -1) {
         std::perror("fork");
         return;
     }
-    
+
     if (exec_pid == 0) {
         // Child process
         execvp(c_args[0], c_args.data());
         std::cerr << "Error: Failed to execute nsenter: " << strerror(errno) << std::endl;
-        std::cerr << "Make sure 'nsenter' is installed (usually in util-linux package)" << std::endl;
         exit(1);
     } else {
         // Parent process
         int status;
         waitpid(exec_pid, &status, 0);
-        
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             std::cout << "[Exec] Command completed successfully." << std::endl;
         } else {
@@ -161,7 +167,7 @@ void handle_kill_all_command() {
     std::cout << "Stopping all running containers..." << std::endl;
     int stopped_count = 0;
     int already_stopped = 0;
-    
+
     for (const auto& state : containers) {
         if (state.status == "running") {
             std::cout << "  Stopping '" << state.name << "'..." << std::endl;
@@ -175,7 +181,7 @@ void handle_kill_all_command() {
     std::cout << "\n=== Summary ===" << std::endl;
     std::cout << "Stopped: " << stopped_count << " container(s)" << std::endl;
     std::cout << "Already stopped: " << already_stopped << " container(s)" << std::endl;
-    
+
     if (already_stopped > 0) {
         std::cout << "\nTip: Use 'prune' to remove all stopped containers." << std::endl;
     }
@@ -274,39 +280,74 @@ void handle_prune_command() {
 
 
 void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config) {
-    // Phase 1: Parse Environment Variables
-    if (const char* mem_env = std::getenv("MUN_OS_MEMORY_LIMIT")) {
-        config.memory_limit_mb = std::stoi(mem_env);
-    }
-    if (const char* pids_env = std::getenv("MUN_OS_PIDS_LIMIT")) {
-        config.process_limit = std::stoi(pids_env);
-    }
+    // Phase 1: Parse Environment Variables with validation
 
-    // Phase 2: Parse CLI flags
-    int command_start_index = -1;
-    for (int i = start_index; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "--config") {
-            i++; 
-        } else if (arg == "--rootfs") {
-            if (i + 1 < argc) config.rootfs_path = argv[++i];
-        } else if (arg == "--memory") {
-            if (i + 1 < argc) config.memory_limit_mb = std::stoi(argv[++i]);
-        } else if (arg == "--pids") {
-            if (i + 1 < argc) config.process_limit = std::stoi(argv[++i]);
-        } else {
-            if (command_start_index == -1) {
-                command_start_index = i;
+    // ✅ FIX: Add try-catch and bounds checking to prevent integer overflow
+    // BEFORE: config.memory_limit_mb = std::stoi(mem_env); // Can crash or overflow!
+    // AFTER: Validate range 0-1000000 MB (reasonable limit ~1TB)
+    if (const char* mem_env = std::getenv("MUN_OS_MEMORY_LIMIT")) {
+        try {
+            int val = std::stoi(mem_env);
+            if (val >= 0 && val <= 1000000) {
+                config.memory_limit_mb = val;
+            } else {
+                std::cerr << "Warning: Memory limit out of range (0-1000000 MB), ignoring" << std::endl;
             }
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Invalid memory limit value: " << mem_env << std::endl;
         }
     }
 
-    // Phase 3: Populate command from CLI if present
-    if (command_start_index != -1) {
-        config.command = argv[command_start_index];
-        config.args.clear();
-        for (int i = command_start_index + 1; i < argc; ++i) {
-            config.args.push_back(argv[i]);
+    if (const char* pid_env = std::getenv("MUN_OS_PROCESS_LIMIT")) {
+        try {
+            int val = std::stoi(pid_env);
+            if (val >= 0 && val <= 100000) {
+                config.process_limit = val;
+            } else {
+                std::cerr << "Warning: Process limit out of range (0-100000), ignoring" << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Invalid process limit value: " << pid_env << std::endl;
+        }
+    }
+
+    // Phase 2: Parse CLI arguments (overrides environment variables)
+    for (int i = start_index; i < argc; i++) {
+        std::string arg = argv[i];
+
+        if (arg == "--rootfs" && i + 1 < argc) {
+            config.rootfs_path = argv[++i];
+        } else if (arg == "--hostname" && i + 1 < argc) {
+            config.hostname = argv[++i];
+        } else if (arg == "--memory" && i + 1 < argc) {
+            try {
+                int val = std::stoi(argv[++i]);
+                if (val >= 0 && val <= 1000000) {
+                    config.memory_limit_mb = val;
+                } else {
+                    std::cerr << "Warning: Memory limit out of range, ignoring" << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Warning: Invalid memory value" << std::endl;
+            }
+        } else if (arg == "--pids" && i + 1 < argc) {
+            try {
+                int val = std::stoi(argv[++i]);
+                if (val >= 0 && val <= 100000) {
+                    config.process_limit = val;
+                } else {
+                    std::cerr << "Warning: Process limit out of range, ignoring" << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Warning: Invalid process limit value" << std::endl;
+            }
+        } else {
+            // This is the command and its arguments
+            config.command = arg;
+            for (int j = i + 1; j < argc; j++) {
+                config.args.push_back(argv[j]);
+            }
+            break;
         }
     }
 }
@@ -327,7 +368,7 @@ void handle_run_command(int argc, char* argv[]) {
             std::cerr << "Error: Config file does not exist: " << config_path << std::endl;
             return;
         }
-        
+
         std::string absolute_config_path = std::filesystem::absolute(config_path).string();
         if (!ConfigParser::parse_json(absolute_config_path, config)) return;
     }
@@ -338,7 +379,7 @@ void handle_run_command(int argc, char* argv[]) {
         print_usage(argv[0]);
         return;
     }
-    
+
     std::cout << "[Main] Starting container in foreground mode..." << std::endl;
     Container container(config);
     container.run();
@@ -369,7 +410,7 @@ void handle_start_command(int argc, char* argv[]) {
 
     std::string absolute_config_path = std::filesystem::absolute(config_path).string();
     if (!ConfigParser::parse_json(absolute_config_path, config)) return;
-    
+
     parse_cli_and_env(2, argc, argv, config);
 
     if (!ConfigParser::validate(config)) return;
@@ -431,36 +472,64 @@ void handle_stop_command(const std::string& container_name) {
         return;
     }
 
-    ContainerState state = *state_opt;
+    auto state = *state_opt;
 
     if (state.status == "stopped") {
         std::cout << "Container '" << container_name << "' is already stopped." << std::endl;
         return;
     }
 
-    std::cout << "Stopping container '" << container_name << "' (PID: " << state.pid << ")..." << std::endl;
-    
+    std::cout << "Stopping container '" << container_name << "'..." << std::endl;
+
     if (kill(state.pid, SIGTERM) == 0) {
         std::cout << "Sent SIGTERM, waiting for graceful shutdown..." << std::endl;
+
+        // ✅ FIX: Use waitpid(WNOHANG) instead of kill(pid, 0) polling
+        // BEFORE: for loop with kill(pid, 0) had race window - process could
+        //         exit between checks, leaving zombie process
+        // AFTER: Proper waitpid() with WNOHANG flag to reap child immediately
+        int status;
+        bool exited = false;
+
         for (int i = 0; i < 10; i++) {
-            if (kill(state.pid, 0) != 0) break; // Process is gone
-            usleep(500000); // 0.5 seconds
+            pid_t result = waitpid(state.pid, &status, WNOHANG);
+            if (result == state.pid) {
+                std::cout << "Process exited gracefully" << std::endl;
+                exited = true;
+                break;
+            } else if (result == -1) {
+                if (errno == ECHILD) {
+                    // Process already reaped or doesn't exist
+                    exited = true;
+                    break;
+                }
+                perror("waitpid");
+                break;
+            }
+            usleep(500000);  // 500ms between checks
         }
-        
-        if (kill(state.pid, 0) == 0) {
+
+        // Force kill if still alive after timeout
+        if (!exited && kill(state.pid, 0) == 0) {
             std::cout << "Container did not stop, sending SIGKILL..." << std::endl;
             kill(state.pid, SIGKILL);
-            waitpid(state.pid, nullptr, 0);
+            waitpid(state.pid, nullptr, 0);  // Clean up zombie
         }
     } else {
-        std::perror("kill (SIGTERM)");
+        if (errno == ESRCH) {
+            std::cout << "Process already terminated." << std::endl;
+        } else {
+            std::cerr << "Failed to send SIGTERM: " << strerror(errno) << std::endl;
+            return;
+        }
     }
-    
+
+    // Update state
     state.status = "stopped";
-    if (state_manager.save_state(state)) {
-        std::cout << "Container '" << container_name << "' stopped." << std::endl;
-    } else {
+    if (!state_manager.save_state(state)) {
         std::cerr << "Warning: Failed to update container state." << std::endl;
+    } else {
+        std::cout << "Container '" << container_name << "' stopped successfully." << std::endl;
     }
 }
 
@@ -583,7 +652,7 @@ sudo ./scripts/monitor.sh info bg
 sudo ./scripts/manage_containers.sh restart bg
 
 # Stop all
-sudo ./scripts/manage_containers.sh stopall 
+sudo ./scripts/manage_containers.sh stopall
 
 # 1. Start a background container
 sudo ./scripts/manage_containers.sh start bg

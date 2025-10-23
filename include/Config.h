@@ -3,21 +3,21 @@
 
 #include <string>
 #include <vector>
-#include "Security.h" // Include the new security definitions
+#include "Security.h"  // Include the nested security configuration
 
-// This struct holds all configuration for a single container.
 struct Config {
-    // Basic container settings
+    // Basic Configuration
+    // FIX: Added a default initializer for hostname.
     std::string hostname = "mun-os-container";
     std::string rootfs_path;
     std::string command;
     std::vector<std::string> args;
     
-    // Resource limits (cgroups)
+    // Resource Limits
     int memory_limit_mb = 0;
     int process_limit = 0;
     
-    // All security-related configurations are now neatly grouped here.
+    // Encapsulated Security Configuration
     Security::SecurityConfig security;
 };
 

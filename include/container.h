@@ -6,22 +6,24 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <unistd.h>
 
 class Container {
 public:
     explicit Container(const Config& config);
-
-    int run();
-    pid_t start();
+    int run(); // Runs in foreground
+    pid_t start(); // Runs in background (detached)
 
 private:
-    // Arguments passed to the new process, including a pipe for synchronization.
+    // This struct passes essential info to the child process.
+    // Container.h
     struct ChildArgs {
-        const Config* config;
+        const Config* config;    // ✅ CORRECT - pointer
         bool detached;
-        int pipe_fd; // Used to signal child process after parent setup is complete
+        int ctrl_socks[2];
     };
+
+
+
 
     static int child_function(void* arg);
     pid_t create_container_process(bool detached);
@@ -32,4 +34,3 @@ private:
 };
 
 #endif // CONTAINER_H
-
