@@ -38,6 +38,7 @@ public:
 private:
     const Config& config_;
     std::string cgroup_path_;
+    std::string container_name_;
 };
 
 #endif // CGROUP_MANAGER_H

@@ -97,6 +97,7 @@ class SecurityManager {
 public:
     static bool apply_parent_mappings(const SecurityConfig& config, pid_t child_pid);
     static bool apply_child_security(const SecurityConfig& config, const std::string& hostname, const std::string& rootfs);
+    static bool is_running_in_wsl() ;
 };
 
 } // namespace Security

@@ -1,8 +1,22 @@
 {
-  "hostname": "mun-os-container",
+  "hostname": "web-server",
   "rootfs_path": "./rootfs",
   "command": "/bin/sh",
   "args": [],
-  "memory_limit_mb": 256,
-  "process_limit": 50
+  "memory_limit_mb": 128,
+  "process_limit": 10,
+  "security": {
+    "use_pivot_root": false,
+    "use_user_namespace": false,
+    "use_seccomp": true,
+    "readonly_rootfs": false
+  },
+  "network": {
+    "enable_networking": true,
+    "bridge_name": "mun-bridge0",
+    "container_ip": "172.18.0.2/24",
+    "gateway_ip": "172.18.0.1/24",
+    "enable_dns": true,
+    "port_mappings": []
+  }
 }

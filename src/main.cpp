@@ -29,6 +29,7 @@ void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config);
 void handle_kill_all_command();
 void handle_cleanup_command();
 void handle_prune_command();
+void handle_name_command();
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         print_usage(argv[0]);
@@ -79,7 +80,8 @@ else if (command == "cleanup") {
 }
 else if (command == "prune") {
     handle_prune_command();
-}else {
+}
+else {
         std::cerr << "Error: Unknown command '" << command << "'" << std::endl;
         print_usage(argv[0]);
         return 1;
@@ -389,12 +391,14 @@ void handle_run_command(int argc, char* argv[]) {
 void handle_start_command(int argc, char* argv[]) {
     Config config;
     std::string config_path;
-
+    std::string custom_name;
     for (int i = 2; i < argc; ++i) {
         if (std::string(argv[i]) == "--config" && i + 1 < argc) {
             config_path = argv[i + 1];
             break;
-        }
+        }else if (std::string(argv[i]) == "--name" && i + 1 < argc) {
+                    custom_name = argv[i + 1];  // ✅ NEW: Capture custom name
+                }
     }
 
     if (config_path.empty()) {
@@ -414,9 +418,9 @@ void handle_start_command(int argc, char* argv[]) {
     parse_cli_and_env(2, argc, argv, config);
 
     if (!ConfigParser::validate(config)) return;
-
-    std::string container_name = std::filesystem::path(config_path).stem().string();
-
+    std::string container_name = custom_name.empty()
+           ? std::filesystem::path(config_path).stem().string()
+           : custom_name;
     StateManager state_manager;
     auto existing_state = state_manager.load_state(container_name);
     if (existing_state && existing_state->status == "running") {
@@ -605,11 +609,19 @@ void print_usage(const char* prog_name) {
     std::cerr << "  stop <container_name>         Stop a running container (preserves state)." << std::endl;
     std::cerr << "  restart <container_name>      Restart a stopped or running container." << std::endl;
     std::cerr << "  list                          List all containers." << std::endl;
-    std::cerr << "  remove <container_name>           Remove a stopped container." << std::endl;
-    std::cerr << "  kill-all                          Stop all running containers." << std::endl;
-    std::cerr << "  prune                             Remove all stopped containers." << std::endl;
-    std::cerr << "  cleanup                           Stop all running AND remove all containers." << std::endl;
+    std::cerr << "  remove <container_name>       Remove a stopped container." << std::endl;
+    std::cerr << "  kill-all                      Stop all running containers." << std::endl;
+    std::cerr << "  prune                         Remove all stopped containers." << std::endl;
+    std::cerr << "  cleanup                       Stop all running AND remove all containers." << std::endl;
+    std::cerr << "\nOptions:" << std::endl;  // ✅ NEW section
+    std::cerr << "  --name <name>         Custom container name (overrides default)" << std::endl;
+    std::cerr << "  --rootfs <path>       Path to root filesystem" << std::endl;
+    std::cerr << "  --hostname <name>     Container hostname" << std::endl;
+    std::cerr << "  --memory <MB>         Memory limit in megabytes" << std::endl;
+    std::cerr << "  --pids <count>        Maximum number of processes" << std::endl;
+    std::cerr << "  --config <path>       JSON configuration file" << std::endl;
 }
+
 
 
 // Example usage for 'run' command:

@@ -6,10 +6,13 @@
 #include <cstring>    // For strerror
 #include <cerrno>     // For errno
 
-CgroupManager::CgroupManager(const Config& config) : config_(config) {
-    // Create a unique cgroup path based on the container's hostname
-    cgroup_path_ = "/sys/fs/cgroup/" + config_.hostname;
+CgroupManager::CgroupManager(const Config& config)
+    : config_(config),  // ✅ Initialize reference FIRST
+      container_name_(config.hostname),
+      cgroup_path_("/sys/fs/cgroup/" + config.hostname) {
+    // Constructor body is now empty - all initialization done above
 }
+
 
 bool CgroupManager::setup() {
     // 1. Create the cgroup directory
@@ -40,7 +43,7 @@ bool CgroupManager::setup() {
         pids_file << config_.process_limit;
         pids_file.close();
     }
-    
+
     std::cout << "[CgroupManager] Cgroup setup complete at " << cgroup_path_ << std::endl;
     return true;
 }
