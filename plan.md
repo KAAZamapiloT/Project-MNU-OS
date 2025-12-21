@@ -159,6 +159,4 @@ cat /sys/fs/cgroup/mnu-os/<id>/memory.current
 * Debug with `unshare`, `nsenter`, and `/proc/<pid>/status`.
 * Future: replace `chroot` with `pivot_root`, add user namespaces.
 
----
 
-👉 Do you also want me to generate **stub code for all `.hpp` and `.cpp` files** (with just function signatures + TODOs for each person) so your team can immediately clone & start coding?
