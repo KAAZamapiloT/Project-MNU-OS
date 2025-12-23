@@ -21,7 +21,7 @@ static bool send_fd(int socket, int fd_to_send) {
     struct msghdr msg = {0};
     struct iovec iov[1];
     char buf[1] = {'X'};
-
+   
     iov[0].iov_base = buf;
     iov[0].iov_len = 1;
     msg.msg_iov = iov;
