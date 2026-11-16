@@ -20,13 +20,14 @@ private:
         const Config* config;    // ✅ CORRECT - pointer
         bool detached;
         int ctrl_socks[2];
+        int slave_fd;
     };
 
 
 
 
     static int child_function(void* arg);
-    pid_t create_container_process(bool detached);
+    pid_t create_container_process(bool detached, int& out_ctrl_fd, int& out_master_fd);
 
     Config config_;
     std::unique_ptr<char[]> stack_memory_;

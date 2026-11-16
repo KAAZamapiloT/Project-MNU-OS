@@ -20,7 +20,7 @@ public:
     NetworkManager(const NetworkConfig& config);
     ~NetworkManager();
 
-    bool setup_container_network(pid_t container_pid, const std::string& container_name);
+    bool setup_container_network(pid_t container_pid, const std::string& container_name, const std::string& rootfs_path);
     bool cleanup_container_network(const std::string& container_name);
 
 private:
@@ -39,7 +39,7 @@ private:
     bool configure_container_network(pid_t pid, const std::string& veth_name, const std::string& container_ip);
 
     bool setup_port_forwarding();
-    bool setup_dns(pid_t pid);
+    bool setup_dns(pid_t pid, const std::string& rootfs_path);
 };
 
 #endif // NETWORK_MANAGER_H

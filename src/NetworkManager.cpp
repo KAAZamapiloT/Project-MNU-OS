@@ -55,7 +55,7 @@ NetworkManager::~NetworkManager() {}
 // MAIN SETUP FUNCTION
 // ============================================================================
 
-bool NetworkManager::setup_container_network(pid_t container_pid, const std::string& container_name) {
+bool NetworkManager::setup_container_network(pid_t container_pid, const std::string& container_name, const std::string& rootfs_path) {
     if (!config_.enable_networking) {
         return true;
     }
@@ -107,7 +107,7 @@ bool NetworkManager::setup_container_network(pid_t container_pid, const std::str
     }
 
     if (config_.enable_dns) {
-        if (!setup_dns(container_pid)) {
+        if (!setup_dns(container_pid, rootfs_path)) {
             std::cout << "[Network] DNS: Using pre-configured resolv.conf from rootfs" << std::endl;
         }
     }
@@ -303,7 +303,14 @@ bool NetworkManager::setup_port_forwarding() {
         std::string cmd = "iptables -t nat -A PREROUTING -p tcp --dport " + host_port +
                          " -j DNAT --to-destination " + container_ip + ":" + container_port;
         if (system(cmd.c_str()) != 0) {
-            std::cerr << "[Network] Failed to setup port forwarding: " << mapping << std::endl;
+            std::cerr << "[Network] Failed to setup PREROUTING port forwarding: " << mapping << std::endl;
+            continue;
+        }
+
+        std::string cmd2 = "iptables -t nat -A OUTPUT -o lo -p tcp --dport " + host_port +
+                           " -j DNAT --to-destination " + container_ip + ":" + container_port;
+        if (system(cmd2.c_str()) != 0) {
+            std::cerr << "[Network] Failed to setup OUTPUT port forwarding for localhost: " << mapping << std::endl;
             continue;
         }
 
@@ -318,8 +325,8 @@ bool NetworkManager::setup_port_forwarding() {
 // DNS CONFIGURATION
 // ============================================================================
 
-bool NetworkManager::setup_dns(pid_t pid) {
-    std::string etc_dir = "/proc/" + std::to_string(pid) + "/root/etc";
+bool NetworkManager::setup_dns(pid_t pid, const std::string& rootfs_path) {
+    std::string etc_dir = rootfs_path + "/etc";
     struct stat st;
 
     if (stat(etc_dir.c_str(), &st) != 0) {

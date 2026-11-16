@@ -23,6 +23,10 @@ bool ConfigParser::parse_json(const std::string& filepath, Config& out_config) {
         if (data.contains("args")) {
             out_config.args = data["args"].get<std::vector<std::string>>();
         }
+        if (data.contains("env")) {
+            out_config.env_vars = data["env"].get<std::vector<std::string>>();
+        }
+        out_config.allocate_pty = data.value("tty", false);
 
         // Resource limits
         if (data.contains("resources")) {

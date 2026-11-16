@@ -12,6 +12,8 @@ struct Config {
     std::string rootfs_path;
     std::string command;
     std::vector<std::string> args;
+    std::vector<std::string> env_vars;
+    bool allocate_pty = false;
 
     // Resource Limits
     int memory_limit_mb = 0;

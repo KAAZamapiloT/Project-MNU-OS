@@ -19,6 +19,7 @@
 #include <linux/audit.h>
 #include <sys/sysmacros.h>
 #include <climits>  // For PATH_MAX
+#include <grp.h>    // For setgroups
 
 // Use the official BPF macros from the header to avoid redefinition
 #ifndef BPF_STMT
@@ -272,6 +273,7 @@ bool UserSecurity::setup_setgroups(pid_t pid, bool allow) {
 }
 
 bool UserSecurity::drop_to_user(uid_t uid, gid_t gid) {
+    if (setgroups(0, nullptr) != 0) { log_error("Failed to clear supplementary groups"); return false; }
     if (setgid(gid) != 0) { log_error("Failed to setgid"); return false; }
     if (setuid(uid) != 0) { log_error("Failed to setuid"); return false; }
     return true;

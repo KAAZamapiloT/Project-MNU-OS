@@ -343,6 +343,10 @@ void parse_cli_and_env(int start_index, int argc, char* argv[], Config& config) 
             } catch (const std::exception& e) {
                 std::cerr << "Warning: Invalid process limit value" << std::endl;
             }
+        } else if ((arg == "--env" || arg == "-e") && i + 1 < argc) {
+            config.env_vars.push_back(argv[++i]);
+        } else if (arg == "--tty" || arg == "-t") {
+            config.allocate_pty = true;
         } else {
             // This is the command and its arguments
             config.command = arg;
@@ -619,6 +623,8 @@ void print_usage(const char* prog_name) {
     std::cerr << "  --hostname <name>     Container hostname" << std::endl;
     std::cerr << "  --memory <MB>         Memory limit in megabytes" << std::endl;
     std::cerr << "  --pids <count>        Maximum number of processes" << std::endl;
+    std::cerr << "  -e, --env <VAR=VAL>   Set environment variable" << std::endl;
+    std::cerr << "  -t, --tty             Allocate a pseudo-TTY" << std::endl;
     std::cerr << "  --config <path>       JSON configuration file" << std::endl;
 }
 
