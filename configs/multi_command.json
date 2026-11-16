@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-multi-cmd",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Step 1: Creating test file'; echo 'test content' > /tmp/test.txt; echo 'Step 2: Reading test file'; cat /tmp/test.txt; echo 'Step 3: Cleaning up'; rm /tmp/test.txt; echo 'Complete!'"],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

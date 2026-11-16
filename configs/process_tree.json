@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-proc-tree",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Process Tree:'; ps auxf 2>/dev/null || ps aux 2>/dev/null || ps"],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

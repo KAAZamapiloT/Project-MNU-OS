@@ -1,0 +1,8 @@
+{
+  "hostname": "my-custom-container",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Hostname test'; hostname; cat /etc/hostname 2>/dev/null || echo '/etc/hostname not found'"],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

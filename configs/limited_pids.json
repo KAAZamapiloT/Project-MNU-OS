@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-limited-pids",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Limited to 5 processes'; echo 'Current processes:'; ps"],
+  "memory_limit_mb": 128,
+  "process_limit": 5
+}

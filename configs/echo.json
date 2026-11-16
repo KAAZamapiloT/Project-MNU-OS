@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-echo",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/echo",
+  "args": ["Hello from MUN-OS Container!"],
+  "memory_limit_mb": 64,
+  "process_limit": 10
+}

@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-stress",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Starting stress test'; i=0; while [ $i -lt 100 ]; do echo 'Iteration: '$i; i=$((i+1)); done; echo 'Stress test complete'"],
+  "memory_limit_mb": 256,
+  "process_limit": 50
+}

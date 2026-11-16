@@ -1,52 +1,37 @@
 #ifndef CONTAINER_H
 #define CONTAINER_H
 
+#include "Config.h"
+#include "CgroupManager.h"
 #include <string>
 #include <vector>
+#include <memory>
 
-// Define _GNU_SOURCE to get the declaration of clone() from <sched.h>
-#define _GNU_SOURCE
-#include <sched.h>
-
-/**
- * @class Container
- * @brief Manages the creation and execution of an isolated process.
- */
 class Container {
 public:
-    /**
-     * @brief Constructs a Container object.
-     * @param hostname The desired hostname for the container.
-     * @param rootfs_path The path to the root filesystem for the container.
-     * @param command The command to run inside the container.
-     * @param args A vector of arguments for the command.
-     */
-    Container(
-        const std::string& hostname,
-        const std::string& rootfs_path,
-        const std::string& command,
-        const std::vector<std::string>& args
-    );
-
-    /**
-     * @brief Runs the container.
-     * @return The exit status of the containerized process, or -1 on failure.
-     */
-    int run();
+    explicit Container(const Config& config);
+    int run(); // Runs in foreground
+    pid_t start(); // Runs in background (detached)
 
 private:
-    /**
-     * @brief The static entry point for the child process created by clone().
-     * @param arg A pointer to the Container object (`this`).
-     */
-    static int child_function(void* arg);
+    // This struct passes essential info to the child process.
+    // Container.h
+    struct ChildArgs {
+        const Config* config;    // ✅ CORRECT - pointer
+        bool detached;
+        int ctrl_socks[2];
+        int slave_fd;
+    };
 
-    // Member variables to hold the container's configuration
-    std::string hostname_;
-    std::string rootfs_path_;
-    std::string command_;
-    std::vector<std::string> args_;
+
+
+
+    static int child_function(void* arg);
+    pid_t create_container_process(bool detached, int& out_ctrl_fd, int& out_master_fd);
+
+    Config config_;
+    std::unique_ptr<char[]> stack_memory_;
+    CgroupManager cgroup_manager_;
 };
 
 #endif // CONTAINER_H
-

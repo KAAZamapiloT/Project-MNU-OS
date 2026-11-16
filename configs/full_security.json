@@ -1,0 +1,26 @@
+{
+    "hostname": "ultimate-secure-container",
+    "rootfs_path": "./rootfs",
+    "command": "/bin/sh",
+    "args": [
+        "-c",
+        "echo '--- INSIDE THE CONTAINER ---'; id; echo; ls -l /; echo; echo '--- TESTING BIND MOUNT ---'; ls -l /shared; echo 'Content of host file:'; cat /shared/host_file.txt; echo 'Trying to write to bind mount:'; touch /shared/container_file.txt && echo 'SUCCESS: Wrote to bind mount.' || echo 'FAILURE: Could not write to bind mount.'; echo; echo '--- TESTING TMPFS ---'; echo 'Trying to write to /tmp:'; touch /tmp/tmp_file.txt && echo 'SUCCESS: Wrote to /tmp.' || echo 'FAILURE: Could not write to /tmp.'; echo; echo '--- TESTING READ-ONLY ROOT ---'; echo 'Trying to write to /:'; touch /test_file && echo 'FAILURE: Wrote to read-only root!' || echo 'SUCCESS: Cannot write to read-only root.'; echo; echo '--- TESTING SECCOMP ---'; echo 'Trying to run a blocked syscall (mount):'; mount && echo 'FAILURE: Mount syscall was not blocked!' || echo 'SUCCESS: Mount syscall was blocked by seccomp.'"
+    ],
+    "resources": {
+        "memory_limit_mb": 128
+    },
+    "security": {
+        "use_user_namespace": true,
+        "readonly_rootfs": true,
+        "drop_capabilities": true,
+        "use_seccomp": true,
+        "setup_tmpfs": true,
+        "tmpfs_size_mb": 32,
+        "bind_mounts": [
+            {
+                "source": "./shared_data",
+                "target": "/shared"
+            }
+        ]
+    }
+}

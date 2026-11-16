@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-test",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Testing MUN-OS Container'; echo 'Current directory:'; pwd; echo 'Listing files:'; ls -la /; echo 'Process list:'; ps aux 2>/dev/null || ps; echo 'Done!'"],
+  "memory_limit_mb": 256,
+  "process_limit": 50
+}

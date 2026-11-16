@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-low-mem",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Low memory container'; free -m 2>/dev/null || echo 'free command not available'"],
+  "memory_limit_mb": 64,
+  "process_limit": 10
+}

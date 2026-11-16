@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-long-running",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sleep",
+  "args": ["7200"],
+  "memory_limit_mb": 64,
+  "process_limit": 10
+}

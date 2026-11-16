@@ -1,0 +1,6 @@
+{
+  "hostname": "long-running-container",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sleep",
+  "args": ["600"]
+}

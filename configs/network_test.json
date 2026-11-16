@@ -1,0 +1,8 @@
+{
+  "hostname": "mun-network-test",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "args": ["-c", "echo 'Network Test'; ip addr 2>/dev/null || ifconfig 2>/dev/null || echo 'No network tools available'"],
+  "memory_limit_mb": 128,
+  "process_limit": 25
+}

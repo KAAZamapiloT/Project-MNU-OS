@@ -1,0 +1,9 @@
+{
+  "hostname": "my-json-container",
+  "rootfs_path": "./rootfs",
+  "command": "/bin/sh",
+  "resources": {
+    "memory_limit_mb": 512,
+    "process_limit": 50
+  }
+}

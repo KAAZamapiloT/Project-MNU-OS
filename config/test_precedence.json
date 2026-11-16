@@ -1,0 +1,14 @@
+{
+    "hostname": "precedence-test",
+    "rootfs_path": "./rootfs",
+    "command": "/bin/dd",
+    "args": [
+        "if=/dev/zero",
+        "of=/dev/null",
+        "bs=1M",
+        "count=70"
+    ],
+    "resources": {
+        "memory_limit_mb": 128
+    }
+}
